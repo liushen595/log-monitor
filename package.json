@@ -1,0 +1,48 @@
+{
+    "name": "log-monitor",
+    "displayName": "日志监控器",
+    "description": "实时监控日志文件并在VS Code输出面板中显示更新",
+    "version": "0.0.1",
+    "engines": {
+        "vscode": "^1.74.0"
+    },
+    "categories": [
+        "Other"
+    ],
+    "extensionKind": [
+        "ui",
+        "workspace"
+    ],
+    "activationEvents": [],
+    "main": "./out/extension.js",
+    "contributes": {
+        "commands": [
+            {
+                "command": "log-monitor.startWatching",
+                "title": "开始监控日志文件"
+            },
+            {
+                "command": "log-monitor.stopWatching",
+                "title": "停止监控日志文件"
+            },
+            {
+                "command": "log-monitor.showEnvironment",
+                "title": "显示环境信息(调试)"
+            },
+            {
+                "command": "log-monitor.showURIDetails",
+                "title": "显示文件URI详细信息(调试)"
+            }
+        ]
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run compile",
+        "compile": "tsc -p ./",
+        "watch": "tsc -watch -p ./"
+    },
+    "devDependencies": {
+        "@types/vscode": "^1.74.0",
+        "@types/node": "16.x",
+        "typescript": "^4.9.4"
+    }
+}
