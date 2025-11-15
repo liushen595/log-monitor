@@ -10,6 +10,9 @@ let logOutputChannel: vscode.OutputChannel;
 // 保存所有活跃的文件监视器
 let activeFileWatchers: vscode.FileSystemWatcher[] = [];
 
+// 保存每个文件的最后读取位置（字节数）
+let fileLastPositions: Map<string, number> = new Map();
+
 /**
  * 从日志文件读取内容并输出到输出面板
  * @param uri 日志文件URI
@@ -47,15 +50,47 @@ async function readAndDisplayLog(uri: vscode.Uri, showOnUpdate: boolean = true, 
             throw readError;
         }
 
-        // 将内容转换为字符串
-        const content = Buffer.from(fileContent).toString('utf8');
+        // 获取文件的唯一键（使用URI字符串）
+        const fileKey = uri.toString();
+        
+        // 获取当前文件大小
+        const currentSize = fileContent.length;
+        
+        // 获取上次读取的位置
+        const lastPosition = fileLastPositions.get(fileKey) || 0;
 
-        // 如果是更新操作，只添加更新信息和新内容，否则清除并重新显示全部内容
+        // 如果是更新操作，只读取新增的内容
         if (isUpdate) {
-            const timestamp = new Date().toLocaleString();
-            logOutputChannel.appendLine(`\n[${timestamp}] === 日志文件已更新 ===`);
-            logOutputChannel.append(content);
+            // 检查文件是否被截断（新大小小于上次记录的位置）
+            if (currentSize < lastPosition) {
+                // 文件被截断或重新创建，从头读取
+                console.log(`文件被截断: 上次位置=${lastPosition}, 当前大小=${currentSize}`);
+                const content = Buffer.from(fileContent).toString('utf8');
+                const timestamp = new Date().toLocaleString();
+                logOutputChannel.appendLine(`\n[${timestamp}] === 日志文件已被截断或重新创建，重新显示全部内容 ===`);
+                logOutputChannel.append(content);
+                fileLastPositions.set(fileKey, currentSize);
+            } else if (currentSize > lastPosition) {
+                // 只读取新增的内容
+                const newContent = Buffer.from(fileContent.slice(lastPosition)).toString('utf8');
+                console.log(`读取新增内容: 从位置${lastPosition}到${currentSize}, 新增${currentSize - lastPosition}字节`);
+                
+                if (newContent.trim().length > 0) {
+                    const timestamp = new Date().toLocaleString();
+                    logOutputChannel.appendLine(`\n[${timestamp}] === 日志文件已更新 ===`);
+                    logOutputChannel.append(newContent);
+                }
+                
+                // 更新最后读取位置
+                fileLastPositions.set(fileKey, currentSize);
+            } else {
+                // 文件大小没有变化
+                console.log(`文件大小没有变化: ${currentSize}字节`);
+            }
         } else {
+            // 首次读取，显示全部内容
+            const content = Buffer.from(fileContent).toString('utf8');
+            
             // 清除之前的输出内容
             logOutputChannel.clear();
 
@@ -71,6 +106,10 @@ async function readAndDisplayLog(uri: vscode.Uri, showOnUpdate: boolean = true, 
 
             // 添加文件内容
             logOutputChannel.append(content);
+            
+            // 记录首次读取的位置
+            fileLastPositions.set(fileKey, currentSize);
+            console.log(`首次读取文件，记录位置: ${currentSize}字节`);
         }
 
         // 如果需要显示输出面板，则调用show方法
@@ -204,6 +243,10 @@ async function startWatchingLogFile(context: vscode.ExtensionContext, fileUri: v
     fileSystemWatcher.onDidDelete((deletedUri) => {
         console.log(`文件删除事件: ${deletedUri.toString()}`);
         logOutputChannel.appendLine(`[${new Date().toLocaleTimeString()}] 日志文件已删除`);
+        // 清除已删除文件的位置记录
+        const fileKey = deletedUri.toString();
+        fileLastPositions.delete(fileKey);
+        console.log(`已清除文件位置记录: ${fileKey}`);
     });
 
     // 首次读取文件内容
@@ -348,6 +391,10 @@ export function activate(context: vscode.ExtensionContext) {
 
             // 清空监视器列表
             activeFileWatchers = [];
+            
+            // 清空文件位置记录
+            fileLastPositions.clear();
+            console.log('已清空所有文件位置记录');
 
             vscode.window.showInformationMessage('已停止监控所有日志文件');
             logOutputChannel.appendLine('[系统] 已停止监控所有日志文件');
@@ -382,4 +429,7 @@ export function deactivate() {
 
     // 清空列表
     activeFileWatchers = [];
+    
+    // 清空文件位置记录
+    fileLastPositions.clear();
 }
