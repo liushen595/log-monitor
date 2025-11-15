@@ -59,23 +59,26 @@ async function readAndDisplayLog(uri: vscode.Uri, showOnUpdate: boolean = true, 
         // 获取上次读取的位置
         const lastPosition = fileLastPositions.get(fileKey) || 0;
 
+        // 将内容转换为字符串（只转换一次）
+        const fullContent = Buffer.from(fileContent).toString('utf8');
+
         // 如果是更新操作，只读取新增的内容
         if (isUpdate) {
             // 检查文件是否被截断（新大小小于上次记录的位置）
             if (currentSize < lastPosition) {
                 // 文件被截断或重新创建，从头读取
                 console.log(`文件被截断: 上次位置=${lastPosition}, 当前大小=${currentSize}`);
-                const content = Buffer.from(fileContent).toString('utf8');
                 const timestamp = new Date().toLocaleString();
                 logOutputChannel.appendLine(`\n[${timestamp}] === 日志文件已被截断或重新创建，重新显示全部内容 ===`);
-                logOutputChannel.append(content);
+                logOutputChannel.append(fullContent);
                 fileLastPositions.set(fileKey, currentSize);
             } else if (currentSize > lastPosition) {
                 // 只读取新增的内容
-                const newContent = Buffer.from(fileContent.slice(lastPosition)).toString('utf8');
+                const newContent = fullContent.substring(lastPosition);
                 console.log(`读取新增内容: 从位置${lastPosition}到${currentSize}, 新增${currentSize - lastPosition}字节`);
                 
-                if (newContent.trim().length > 0) {
+                // 检查新内容是否有效（不是仅包含空白字符）
+                if (newContent.length > 0 && newContent.trim().length > 0) {
                     const timestamp = new Date().toLocaleString();
                     logOutputChannel.appendLine(`\n[${timestamp}] === 日志文件已更新 ===`);
                     logOutputChannel.append(newContent);
@@ -89,8 +92,6 @@ async function readAndDisplayLog(uri: vscode.Uri, showOnUpdate: boolean = true, 
             }
         } else {
             // 首次读取，显示全部内容
-            const content = Buffer.from(fileContent).toString('utf8');
-            
             // 清除之前的输出内容
             logOutputChannel.clear();
 
@@ -105,7 +106,7 @@ async function readAndDisplayLog(uri: vscode.Uri, showOnUpdate: boolean = true, 
             logOutputChannel.appendLine(`\n=== 日志内容开始 ===\n`);
 
             // 添加文件内容
-            logOutputChannel.append(content);
+            logOutputChannel.append(fullContent);
             
             // 记录首次读取的位置
             fileLastPositions.set(fileKey, currentSize);
